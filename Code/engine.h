@@ -14,6 +14,36 @@ typedef glm::ivec2 ivec2;
 typedef glm::ivec3 ivec3;
 typedef glm::ivec4 ivec4;
 
+struct Vao
+{
+    GLuint handle;
+    GLuint programHandle;
+};
+
+struct VertexBufferAttribute
+{
+    u8 location;
+    u8 componentCount;
+    u8 offset;
+};
+
+struct VertexBufferLayout
+{
+    std::vector<VertexBufferAttribute> attributes;
+    u8 stride;
+};
+
+struct VertexShaderAttribute
+{
+    u8 location;
+    u8 componentCount;
+};
+
+struct VertexShaderLayout
+{
+    std::vector<VertexShaderAttribute> attributes;
+};
+
 
 //OpenGL info (retrieved in the initialization)
 struct OpenGLInfo
@@ -26,6 +56,8 @@ struct OpenGLInfo
     std::vector<std::string> glExtensions;
 
 };
+
+//Resources
 
 struct Image
 {
@@ -41,17 +73,61 @@ struct Texture
     std::string filepath;
 };
 
+struct Material
+{
+    std::string name;
+    vec3        albedo;
+    vec3        emissive;
+    f32         smoothness;
+    u32         albedoTextureIdx;
+    u32         emissiveTextureIdx;
+    u32         specularTextureIdx;
+    u32         normalsTextureIdx;
+    u32         bumpTextureIdx;
+};
+
+
+
+struct Submesh
+{
+    VertexBufferLayout vertexBufferLayout;
+    std::vector<float> vertices;
+    std::vector<u32>   indices;
+    u32                vertexOffset;
+    u32                indexOffset;
+
+    std::vector<Vao>   vaos;
+};
+
+struct Mesh
+{
+    std::vector<Submesh> submeshes;
+    GLuint               vertexBufferHandle;
+    GLuint               indexBufferHandle;
+};
+
+struct Model
+{
+    u32 meshIdx;
+    std::vector<u32> materialIdx;
+};
+
+
+
 struct Program
 {
     GLuint             handle;
     std::string        filepath;
     std::string        programName;
     u64                lastWriteTimestamp; // What is this for?
+
+    VertexShaderLayout vertexInputLayout;
 };
 
 enum Mode
 {
     Mode_TexturedQuad,
+    Mode_TexturedMesh,
     Mode_Count
 };
 
@@ -61,12 +137,11 @@ struct VertexV3V2
     glm::vec2 uv;
 };
 
+
 struct App
 {
     //OpenGL info for output purposes
     OpenGLInfo openGLInfo;
-
-    
 
     // Loop
     f32  deltaTime;
@@ -82,10 +157,15 @@ struct App
     ivec2 displaySize;
 
     std::vector<Texture>  textures;
+    std::vector<Material> materials;
+    std::vector<Mesh>     meshes;
+    std::vector<Model>    models;
     std::vector<Program>  programs;
 
     // program indices
     u32 texturedGeometryProgramIdx;
+
+    u32 texturedMeshProgramIdx;
     
     // texture indices
     u32 diceTexIdx;
@@ -93,6 +173,8 @@ struct App
     u32 blackTexIdx;
     u32 normalTexIdx;
     u32 magentaTexIdx;
+
+    u32 patrickTexIdx;
 
     // Mode
     Mode mode;
@@ -111,9 +193,12 @@ struct App
 
 void Init(App* app);
 
+void InitQuad(App* app);
+
 void Gui(App* app);
 
 void Update(App* app);
 
 void Render(App* app);
 
+u32 LoadTexture2D(App* app, const char* filepath);

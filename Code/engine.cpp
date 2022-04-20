@@ -10,6 +10,8 @@
 #include <stb_image.h>
 #include <stb_image_write.h>
 
+#include "assimp_model_loading.h"
+
 GLuint CreateProgramFromSource(String programSource, const char* shaderName)
 {
     GLchar  infoLogBuffer[1024] = {};
@@ -204,8 +206,58 @@ void Init(App* app)
     //Temporary vertices and indices for drawing Quad
 
     
+   
+
+    app->mode = Mode::Mode_TexturedMesh; //Define what mode of draw we use
+
+    switch (app->mode)
+    {
+        case Mode_TexturedQuad:
+        {
+            InitQuad(app);
+            break;
+        }
+        case Mode_TexturedMesh:
+        {
+            app->patrickTexIdx = LoadModel(app, "Patrick/Patrick.obj");
+
+            app->texturedMeshProgramIdx = LoadProgram(app, "shaders.glsl", "TEXTURED_GEOMETRY");
+            Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
+            
+            int attributeCount = 0;
+            glGetProgramiv(texturedMeshProgram.handle, GL_ACTIVE_ATTRIBUTES, &attributeCount);
+
+            for (int i = 0; i < attributeCount; ++i)
+            {
+                GLchar attribName[100];
+                int attribNameLength = 0, attribSize = 0;
+                GLenum attribType;
+
+                glGetActiveAttrib(texturedMeshProgram.handle, i, ARRAY_COUNT(attribName)
+                    ,&attribNameLength,&attribSize,&attribType,attribName);
+
+                int attributeLocation = glGetAttribLocation(texturedMeshProgram.handle, attribName);
+
+                texturedMeshProgram.vertexInputLayout.attributes.push_back({(u8)attributeLocation,(u8)attribSize});
+            }
+
+            break;
+        }
+    }
+    
+
+    app->diceTexIdx = LoadTexture2D(app, "dice.png");
+    app->whiteTexIdx = LoadTexture2D(app, "color_white.png");
+    app->blackTexIdx = LoadTexture2D(app, "color_black.png");
+    app->normalTexIdx = LoadTexture2D(app, "color_normal.png");
+    app->magentaTexIdx = LoadTexture2D(app, "color_magenta.png");
+
+}
+
+void InitQuad(App* app)
+{
     //Init verts and indices to draw quad
-    VertexV3V2 vertices[] = { 
+    VertexV3V2 vertices[] = {
         {glm::vec3(-0.5,-0.5,0.0),glm::vec2(0.0,0.0)},
         {glm::vec3(0.5,-0.5,0.0),glm::vec2(1.0,0.0) },
         {glm::vec3(0.5,0.5,0.0),glm::vec2(1.0,1.0) },
@@ -220,7 +272,7 @@ void Init(App* app)
     //Geometry
     glGenBuffers(1, &app->embeddedVertices);
     glBindBuffer(GL_ARRAY_BUFFER, app->embeddedVertices);
-    glBufferData(GL_ARRAY_BUFFER,sizeof(vertices),vertices,GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glGenBuffers(1, &app->embeddedElements);
@@ -245,15 +297,11 @@ void Init(App* app)
 
     app->programUniformTexture = glGetUniformLocation(texturedGeometryProgram.handle, "uTexture"); //This right here does wacky stuff
 
-    app->diceTexIdx = LoadTexture2D(app, "dice.png");
-    app->whiteTexIdx = LoadTexture2D(app, "color_white.png");
-    app->blackTexIdx = LoadTexture2D(app, "color_black.png");
-    app->normalTexIdx = LoadTexture2D(app, "color_normal.png");
-    app->magentaTexIdx = LoadTexture2D(app, "color_magenta.png");
-
-
-
-    app->mode =  Mode::Mode_TexturedQuad;
+    if (app->programUniformTexture == GL_INVALID_VALUE || app->programUniformTexture == GL_INVALID_OPERATION)
+    {
+        //log("Fucky stuff wit da program texture");
+        ILOG("ProgramUniformTexture loaded incorrectly");
+    }
 }
 
 void Gui(App* app)
@@ -331,3 +379,15 @@ void Render(App* app)
     }
 }
 
+/* //create the vertex format
+            VertexBufferLayout vertexBufferLayout = {};
+            vertexBufferLayout.attributes.push_back(VertexBufferAttribute{ 0,3,0 });
+            vertexBufferLayout.attributes.push_back(VertexBufferAttribute{ 2,2,3 * sizeof(float) });
+            vertexBufferLayout.stride = 5 * sizeof(float);
+
+            //add the submesh into the mesh
+            Submesh submesh = {};
+            submesh.vertexBufferLayout = vertexBufferLayout;
+            submesh.vertices.swap(vertices);
+            submesh.indices.swap(indices);
+            myMesh->submeshes.push_back(submesh);*/
