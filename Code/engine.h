@@ -55,10 +55,18 @@ enum Mode
     Mode_Count
 };
 
+struct VertexV3V2
+{
+    glm::vec3 pos;
+    glm::vec2 uv;
+};
+
 struct App
 {
     //OpenGL info for output purposes
     OpenGLInfo openGLInfo;
+
+    
 
     // Loop
     f32  deltaTime;
