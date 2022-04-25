@@ -180,6 +180,57 @@ u32 LoadTexture2D(App* app, const char* filepath)
     }
 }
 
+GLuint FindVAO(Mesh& mesh, u32 submeshIndex, const Program& program)
+{
+    Submesh& submesh = mesh.submeshes[submeshIndex];
+
+    //Try finding a vao for this submesh/program
+    for (u32 i = 0; i < (u32)submesh.vaos.size(); ++i)
+        if (submesh.vaos[i].programHandle == program.handle)
+            return submesh.vaos[i].handle;
+
+    GLuint vaoHandle = 0;
+
+    //Create a new vao for this submesh program
+    glGenVertexArrays(1, &vaoHandle);
+    glBindVertexArray(vaoHandle);
+
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.vertexBufferHandle);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.indexBufferHandle);
+
+    //we have to link all vertex inputs attributes to attributes in the vertex buffer
+    for (u32 i = 0; i < program.vertexInputLayout.attributes.size(); ++i)
+    {
+        bool attributeWasLinked = false;
+
+        for (u32 j = 0; j < submesh.vertexBufferLayout.attributes.size(); ++j)
+        {
+            if (program.vertexInputLayout.attributes[i].location == submesh.vertexBufferLayout.attributes[j].location)
+            {
+                const u32 index = submesh.vertexBufferLayout.attributes[j].location;
+                const u32 ncomp = submesh.vertexBufferLayout.attributes[j].componentCount;
+                const u32 offset = submesh.vertexBufferLayout.attributes[j].offset + submesh.vertexOffset;;
+                const u32 stride = submesh.vertexBufferLayout.stride;
+                glVertexAttribPointer(index, ncomp, GL_FLOAT, GL_FALSE, stride, (void*)(u64)offset);
+                glEnableVertexAttribArray(index);
+
+                attributeWasLinked = true;
+                break;
+            }
+        }
+        assert(attributeWasLinked); //The submesh should provide an attribute for each vertex inputs
+    }
+
+    glBindVertexArray(0);
+
+    //Store it in the list of vaos for this submesh
+    Vao vao{ vaoHandle,program.handle };
+    submesh.vaos.push_back(vao);
+
+    return vaoHandle;
+
+}
+
 void Init(App* app)
 {
     //Get OpenGL info
@@ -234,7 +285,7 @@ void Init(App* app)
                 GLenum attribType;
 
                 glGetActiveAttrib(texturedMeshProgram.handle, i, ARRAY_COUNT(attribName)
-                    ,&attribNameLength,&attribSize,&attribType,attribName);
+                ,&attribNameLength,&attribSize,&attribType,attribName);
 
                 int attributeLocation = glGetAttribLocation(texturedMeshProgram.handle, attribName);
 
@@ -339,41 +390,68 @@ void Render(App* app)
     switch (app->mode)
     {
         case Mode_TexturedQuad:
+        {
+            // TODO: Draw your textured quad here!
+            // - clear the framebuffer
+            // - set the viewport
+            // - set the blending state
+            // - bind the texture into unit 0
+            // - bind the program 
+            //   (...and make its texture sample from unit 0)
+            // - bind the vao
+            // - glDrawElements() !!!
+
+            glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            glViewport(0, 0, app->displaySize.x, app->displaySize.y);
+
+            Program& programTextureGeometry = app->programs[app->texturedGeometryProgramIdx];
+            glUseProgram(programTextureGeometry.handle);
+            glBindVertexArray(app->vao);
+
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+            glUniform1i(app->programUniformTexture, 0);
+            glActiveTexture(GL_TEXTURE0);
+            GLuint textureHandle = app->textures[app->diceTexIdx].handle;
+            glBindTexture(GL_TEXTURE_2D, textureHandle);
+
+            glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_SHORT,0);
+
+            glBindVertexArray(0);
+            glUseProgram(0);
+
+            break;
+        }
+        case Mode::Mode_TexturedMesh:
+        {
+            Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
+            glUseProgram(texturedMeshProgram.handle);
+
+            Model& model = app->models[0];
+            Mesh& mesh = app->meshes[model.meshIdx];
+
+            for (u32 i = 0; i < mesh.submeshes.size();++i)
             {
-                // TODO: Draw your textured quad here!
-                // - clear the framebuffer
-                // - set the viewport
-                // - set the blending state
-                // - bind the texture into unit 0
-                // - bind the program 
-                //   (...and make its texture sample from unit 0)
-                // - bind the vao
-                // - glDrawElements() !!!
+                GLuint vao = FindVAO(mesh, i, texturedMeshProgram);
+                glBindVertexArray(vao);
 
-                glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                u32 submeshMaterialIdx = model.materialIdx[i];
+                Material& submeshMaterial = app->materials[submeshMaterialIdx];
 
-                glViewport(0, 0, app->displaySize.x, app->displaySize.y);
-
-                Program& programTextureGeometry = app->programs[app->texturedGeometryProgramIdx];
-                glUseProgram(programTextureGeometry.handle);
-                glBindVertexArray(app->vao);
-
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-                glUniform1i(app->programUniformTexture, 0);
                 glActiveTexture(GL_TEXTURE0);
-                GLuint textureHandle = app->textures[app->diceTexIdx].handle;
-                glBindTexture(GL_TEXTURE_2D, textureHandle);
+                glBindTexture(GL_TEXTURE_2D, app->textures[submeshMaterial.albedoTextureIdx].handle);
+                glUniform1i(0, 0); //Here missing a variable app->texturedMeshProgram_uTexture
 
-                glDrawElements(GL_TRIANGLES,6,GL_UNSIGNED_SHORT,0);
-
-                glBindVertexArray(0);
-                glUseProgram(0);
+                Submesh& submesh = mesh.submeshes[i];
+                glDrawElements(GL_TRIANGLES, submesh.indices.size(), GL_UNSIGNED_INT, (void*)(u64)submesh.indexOffset);
 
             }
+
             break;
+        }
 
         default:;
     }
