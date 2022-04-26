@@ -10,15 +10,24 @@
 layout(location=0) in vec3 aPosition;
 layout(location=2) in vec2 aTexCoord;
 
+layout(binding = 1,std140) uniform LocalParams
+{
+	mat4 uWorldMatrix;
+	mat4 uWorldViewProjectionMatrix;
+};
+
 out vec2 vTexCoord;
+out vec3 vPosition;
+out vec3 vNormal;
+out vec3 vViewDir;
 
 void main()
 {
 	vTexCoord = aTexCoord;
+	vPosition = vec3(uWorldMatrix * vec4(aPosition,1.0));
+	vNormal = vec3(uWorldMatrix * vec4(aNormal,0.0));
 
-	float clippingScale = 5.0;
-
-	gl_Position = vec4(aPosition,clippingScale);
+	gl_Position = uWorldViewProjectionMatrix * vec4(aPosition,1.0);
 
 	gl_Position.z = -gl_Position.z;
 }
@@ -28,6 +37,9 @@ void main()
 // TODO: Write your fragment shader here
 
 in vec2 vTexCoord;
+in vec3 vPosition;
+in vec3 vNormal;
+in vec3 vViewDir;
 
 uniform sampler2D uTexture;
 
@@ -46,6 +58,10 @@ void main()
 // long as you embrace them within an #ifdef block (as you can see above).
 // The third parameter of the LoadProgram function in engine.cpp allows
 // chosing the shader you want to load by name.
+
+
+
+
 
 /*#ifdef TEXTURED_GEOMETRY
 

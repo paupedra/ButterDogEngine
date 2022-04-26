@@ -137,6 +137,22 @@ struct VertexV3V2
     glm::vec2 uv;
 };
 
+glm::mat4 TransformScale(const vec3& scaleFactors);
+
+glm::mat4 TransformPositionScale(const vec3& pos, const vec3& scaleFactor);
+
+struct Transform
+{
+    glm::mat4 matrix;
+    vec3 position;
+};
+
+struct Camera
+{
+    vec3 position;
+
+    vec3 target;
+};
 
 struct App
 {
@@ -155,6 +171,20 @@ struct App
     char openGlVersion[64];
 
     ivec2 displaySize;
+
+    GLuint bufferHandle; //Hold the number of the Uniform Buffer (It is used before rendering on glBindBufferRange)
+
+    Camera camera;
+
+    float aspectRatio;
+    float zNear = 0.1f;
+    float zFar = 1000.0f;
+
+    glm::mat4 view; //Matrix defining "where the camera is" (Camera Coordinates)
+    glm::mat4 projection; //Clip coordinates
+
+    glm::mat4 world; //The model matrix (?) (Should this be on the model?)
+    glm::mat4 worldViewProjection;
 
     std::vector<Texture>  textures;
     std::vector<Material> materials;

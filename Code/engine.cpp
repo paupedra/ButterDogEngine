@@ -248,6 +248,21 @@ void Init(App* app)
         app->openGLInfo.glExtensions.push_back((const char*)glGetStringi(GL_EXTENSIONS, GLuint(i)));
     }
 
+    //initiate view matrix
+
+    app->camera.target = vec3(0.0f);
+    app->camera.position = vec3(1.0f, 1.0f, 1.0f);
+
+    app->aspectRatio = (float)app->displaySize.x/(float)app->displaySize.y;
+    app->zNear = 0.1f;
+    app->zFar = 1000.0f;
+
+    app->projection = glm::perspective(glm::radians(60.0f), app->aspectRatio, app->zNear, app->zFar);
+    app->view = lookAt(app->camera.position,app->camera.target,vec3(0,1.f,0));
+
+    app->world = TransformPositionScale(vec3(2.5f,1.5f,-2.0f),vec3(0.45f)); //arbitrary position of the model, later should take th entitie's position
+    app->worldViewProjection = app->projection * app->view * app->world;
+
     // TODO: Initialize your resources here!
     // - vertex buffers
     // - element/index buffers
@@ -292,10 +307,19 @@ void Init(App* app)
                 texturedMeshProgram.vertexInputLayout.attributes.push_back({(u8)attributeLocation,(u8)attribSize});
             }
 
+            GLint maxUniformBufferSize,uniformBlockAlignment;
+            glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &maxUniformBufferSize);
+            glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uniformBlockAlignment);
+
+            GLuint bufferHandle;
+            glGenBuffers(1, &bufferHandle);
+            glBindBuffer(GL_UNIFORM_BUFFER, bufferHandle);
+            glBufferData(GL_UNIFORM_BUFFER, maxUniformBufferSize, NULL, GL_STREAM_DRAW);
+            glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
             break;
         }
     }
-    
 
     app->diceTexIdx = LoadTexture2D(app, "dice.png");
     app->whiteTexIdx = LoadTexture2D(app, "color_white.png");
@@ -374,8 +398,6 @@ void Gui(App* app)
             ImGui::EndMenu();
         }
 
-        
-
         ImGui::EndMainMenuBar();
     }
 }
@@ -383,6 +405,9 @@ void Gui(App* app)
 void Update(App* app)
 {
     // You can handle app->input keyboard/mouse here
+
+    glBindBuffer(GL_UNIFORM_BUFFER, app->bufferHandle);
+    //copy all entitie's matrices (matrix uniform in shader)
 }
 
 void Render(App* app)
@@ -427,6 +452,10 @@ void Render(App* app)
         }
         case Mode::Mode_TexturedMesh:
         {
+            u32 blockOffset = 0;
+            u32 blockSize = sizeof(glm::mat4) * 2;
+            glBindBufferRange(GL_UNIFORM_BUFFER, 1, app->bufferHandle, blockOffset, blockSize);
+
             Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
             glUseProgram(texturedMeshProgram.handle);
 
@@ -456,6 +485,20 @@ void Render(App* app)
         default:;
     }
 }
+
+glm::mat4 TransformScale(const vec3& scaleFactors)
+{
+    glm::mat4 transform = scale(scaleFactors);
+    return transform;
+}
+
+glm::mat4 TransformPositionScale(const vec3& pos, const vec3& scaleFactor)
+{
+    glm::mat4 transform = translate(pos);
+    transform = scale(transform, scaleFactor);
+    return transform;
+}
+
 
 /* //create the vertex format
             VertexBufferLayout vertexBufferLayout = {};
