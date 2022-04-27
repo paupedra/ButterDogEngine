@@ -243,6 +243,8 @@ void Init(App* app)
     GLint numExtensions;
     glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
 
+    //glEnable(GL_DEPTH_TEST);
+
     for (int i = 0; i < numExtensions; ++i)
     {   
         app->openGLInfo.glExtensions.push_back((const char*)glGetStringi(GL_EXTENSIONS, GLuint(i)));
@@ -251,28 +253,24 @@ void Init(App* app)
     //initiate view matrix
 
     app->camera.target = vec3(0.0f);
-    app->camera.position = vec3(1.0f, 1.0f, 1.0f);
+    app->camera.position = vec3(20.0f, 20.0f, 20.0f);
 
     app->aspectRatio = (float)app->displaySize.x/(float)app->displaySize.y;
     app->zNear = 0.1f;
     app->zFar = 1000.0f;
-
+     
     app->projection = glm::perspective(glm::radians(60.0f), app->aspectRatio, app->zNear, app->zFar);
-    app->view = lookAt(app->camera.position,app->camera.target,vec3(0,1.f,0));
+    
+    app->view = lookAt(app->camera.position,app->camera.target,vec3(0.f,1.f,0.f));
 
-    app->world = TransformPositionScale(vec3(2.5f,1.5f,-2.0f),vec3(0.45f)); //arbitrary position of the model, later should take th entitie's position
+
+    //This is per object
+    app->world = TransformPositionScale(vec3(0.f,1.f,0.f),vec3(1.f)); //arbitrary position of the model, later should take th entitie's position
     app->worldViewProjection = app->projection * app->view * app->world;
 
-    // TODO: Initialize your resources here!
-    // - vertex buffers
-    // - element/index buffers
-    // - vaos
-    // - programs (and retrieve uniform indices)
-    // - textures
-    //Temporary vertices and indices for drawing Quad
-
-    
-   
+    app->gameObjects[0].transform.matrix = TransformPositionScale(vec3(0.f, 1.f, 0.f), vec3(1.f));
+    app->gameObjects[1].transform.matrix = TransformPositionScale(vec3(0.f, 1.f, 0.f), vec3(1.f));
+    app->activeGameObjects = 2;
 
     app->mode = Mode::Mode_TexturedMesh; //Define what mode of draw we use
 
@@ -307,13 +305,14 @@ void Init(App* app)
                 texturedMeshProgram.vertexInputLayout.attributes.push_back({(u8)attributeLocation,(u8)attribSize});
             }
 
+            //Uniforms initialization
             GLint maxUniformBufferSize,uniformBlockAlignment;
             glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &maxUniformBufferSize);
             glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uniformBlockAlignment);
 
-            GLuint bufferHandle;
-            glGenBuffers(1, &bufferHandle);
-            glBindBuffer(GL_UNIFORM_BUFFER, bufferHandle);
+            
+            glGenBuffers(1, &app->bufferHandle);
+            glBindBuffer(GL_UNIFORM_BUFFER, app->bufferHandle);
             glBufferData(GL_UNIFORM_BUFFER, maxUniformBufferSize, NULL, GL_STREAM_DRAW);
             glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
@@ -327,6 +326,7 @@ void Init(App* app)
     app->normalTexIdx = LoadTexture2D(app, "color_normal.png");
     app->magentaTexIdx = LoadTexture2D(app, "color_magenta.png");
 
+    
 }
 
 void InitQuad(App* app)
@@ -405,9 +405,27 @@ void Gui(App* app)
 void Update(App* app)
 {
     // You can handle app->input keyboard/mouse here
-
     glBindBuffer(GL_UNIFORM_BUFFER, app->bufferHandle);
     //copy all entitie's matrices (matrix uniform in shader)
+    u8* bufferData = (u8*)glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
+    u32 bufferHead = 0;
+
+    for (int i = 0; i < app->activeGameObjects; ++i)
+    {
+
+        memcpy(bufferData + bufferHead, glm::value_ptr(app->gameObjects[i].transform.matrix), sizeof(glm::mat4));
+        bufferHead += sizeof(glm::mat4);
+
+        memcpy(bufferData + bufferHead, glm::value_ptr(app->projection * app->view * app->gameObjects[i].transform.matrix), sizeof(glm::mat4));
+        bufferHead += sizeof(glm::mat4);
+
+        app->gameObjects[i].blockOffset = bufferHead;
+
+    }
+
+    glUnmapBuffer(GL_UNIFORM_BUFFER);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    
 }
 
 void Render(App* app)
@@ -452,33 +470,37 @@ void Render(App* app)
         }
         case Mode::Mode_TexturedMesh:
         {
-            u32 blockOffset = 0;
-            u32 blockSize = sizeof(glm::mat4) * 2;
-            glBindBufferRange(GL_UNIFORM_BUFFER, 1, app->bufferHandle, blockOffset, blockSize);
-
-            Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
-            glUseProgram(texturedMeshProgram.handle);
-
-            Model& model = app->models[0];
-            Mesh& mesh = app->meshes[model.meshIdx];
-
-            for (u32 i = 0; i < mesh.submeshes.size();++i)
+            for (int i = 0; i < app->activeGameObjects; ++i)
             {
-                GLuint vao = FindVAO(mesh, i, texturedMeshProgram);
-                glBindVertexArray(vao);
+                u32 blockOffset = 0;
+                u32 blockSize = sizeof(glm::mat4) * 2;
+                glBindBufferRange(GL_UNIFORM_BUFFER, 1, app->bufferHandle, app->gameObjects[i].blockOffset, blockSize); //Here the offset should be saved for each entity defining where their information is stored in the uniform buffer
 
-                u32 submeshMaterialIdx = model.materialIdx[i];
-                Material& submeshMaterial = app->materials[submeshMaterialIdx];
+                Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
+                glUseProgram(texturedMeshProgram.handle);
 
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, app->textures[submeshMaterial.albedoTextureIdx].handle);
-                glUniform1i(0, 0); //Here missing a variable app->texturedMeshProgram_uTexture
+                Model& model = app->models[0];
+                Mesh& mesh = app->meshes[model.meshIdx];
 
-                Submesh& submesh = mesh.submeshes[i];
-                glDrawElements(GL_TRIANGLES, submesh.indices.size(), GL_UNSIGNED_INT, (void*)(u64)submesh.indexOffset);
+                for (u32 i = 0; i < mesh.submeshes.size(); ++i)
+                {
+                    GLuint vao = FindVAO(mesh, i, texturedMeshProgram);
+                    glBindVertexArray(vao);
+
+                    u32 submeshMaterialIdx = model.materialIdx[i];
+                    Material& submeshMaterial = app->materials[submeshMaterialIdx];
+
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, app->textures[submeshMaterial.albedoTextureIdx].handle);
+                    glUniform1i(0, 0); //Here missing a variable app->texturedMeshProgram_uTexture
+
+                    Submesh& submesh = mesh.submeshes[i];
+                    glDrawElements(GL_TRIANGLES, submesh.indices.size(), GL_UNSIGNED_INT, (void*)(u64)submesh.indexOffset);
+
+                }
+
 
             }
-
             break;
         }
 

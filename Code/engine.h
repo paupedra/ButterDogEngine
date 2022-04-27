@@ -154,8 +154,20 @@ struct Camera
     vec3 target;
 };
 
+struct GameObject
+{
+    std::string name;
+    Transform transform; //(World matrix)
+    GLuint bufferHandle;
+    u32 blockOffset;
+};
+
 struct App
 {
+    GameObject gameObjects[50];
+
+    int activeGameObjects=0;
+
     //OpenGL info for output purposes
     OpenGLInfo openGLInfo;
 
