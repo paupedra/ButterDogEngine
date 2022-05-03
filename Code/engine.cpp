@@ -11,6 +11,7 @@
 #include <stb_image_write.h>
 
 #include "assimp_model_loading.h"
+#include "buffer_management.h"
 
 GLuint CreateProgramFromSource(String programSource, const char* shaderName)
 {
@@ -243,7 +244,7 @@ void Init(App* app)
     GLint numExtensions;
     glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
 
-    //glEnable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
 
     for (int i = 0; i < numExtensions; ++i)
     {   
@@ -261,7 +262,7 @@ void Init(App* app)
      
     app->projection = glm::perspective(glm::radians(60.0f), app->aspectRatio, app->zNear, app->zFar);
     
-    app->view = lookAt(app->camera.position,app->camera.target,vec3(0.f,1.f,0.f));
+    
 
 
     //This is per object
@@ -269,8 +270,9 @@ void Init(App* app)
     app->worldViewProjection = app->projection * app->view * app->world;
 
     app->gameObjects[0].transform.matrix = TransformPositionScale(vec3(0.f, 1.f, 0.f), vec3(1.f));
-    app->gameObjects[1].transform.matrix = TransformPositionScale(vec3(0.f, 1.f, 0.f), vec3(1.f));
-    app->activeGameObjects = 2;
+    app->gameObjects[1].transform.matrix = TransformPositionScale(vec3(10.f, 0.f, 0.f), vec3(1.f));
+    app->gameObjects[2].transform.matrix = TransformPositionScale(vec3(0.f, 0.f, 10.f), vec3(1.f));
+    app->activeGameObjects = 3;
 
     app->mode = Mode::Mode_TexturedMesh; //Define what mode of draw we use
 
@@ -306,14 +308,14 @@ void Init(App* app)
             }
 
             //Uniforms initialization
-            GLint maxUniformBufferSize,uniformBlockAlignment;
-            glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &maxUniformBufferSize);
-            glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uniformBlockAlignment);
+            
+            glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &app->maxUniformBufferSize);
+            glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &app->uniformBlockAlignment);
 
             
             glGenBuffers(1, &app->bufferHandle);
             glBindBuffer(GL_UNIFORM_BUFFER, app->bufferHandle);
-            glBufferData(GL_UNIFORM_BUFFER, maxUniformBufferSize, NULL, GL_STREAM_DRAW);
+            glBufferData(GL_UNIFORM_BUFFER, app->maxUniformBufferSize, NULL, GL_STREAM_DRAW);
             glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
             break;
@@ -400,10 +402,33 @@ void Gui(App* app)
 
         ImGui::EndMainMenuBar();
     }
+
+    if (ImGui::Begin("Camera"))
+    {
+        if (ImGui::DragFloat("X", (float*)&app->camera.position.x, 0.25))
+        {
+            
+        };
+        if (ImGui::DragFloat("Y", (float*)&app->camera.position.y, 0.25))
+        {
+
+        };
+        if (ImGui::DragFloat("Z", (float*)&app->camera.position.z, 0.25))
+        {
+
+        };
+        if (ImGui::Checkbox("Display Rotate", &app->displayRotate));
+
+        ImGui::End();
+    }
 }
 
 void Update(App* app)
 {
+    UpdateInput(app);
+
+    app->view = lookAt(app->camera.position, app->camera.target, vec3(0.f, 1.f, 0.f));
+
     // You can handle app->input keyboard/mouse here
     glBindBuffer(GL_UNIFORM_BUFFER, app->bufferHandle);
     //copy all entitie's matrices (matrix uniform in shader)
@@ -412,6 +437,9 @@ void Update(App* app)
 
     for (int i = 0; i < app->activeGameObjects; ++i)
     {
+        bufferHead = Align(bufferHead, app->uniformBlockAlignment);
+
+        app->gameObjects[i].blockOffset = bufferHead;
 
         memcpy(bufferData + bufferHead, glm::value_ptr(app->gameObjects[i].transform.matrix), sizeof(glm::mat4));
         bufferHead += sizeof(glm::mat4);
@@ -419,13 +447,58 @@ void Update(App* app)
         memcpy(bufferData + bufferHead, glm::value_ptr(app->projection * app->view * app->gameObjects[i].transform.matrix), sizeof(glm::mat4));
         bufferHead += sizeof(glm::mat4);
 
-        app->gameObjects[i].blockOffset = bufferHead;
+       
 
     }
 
     glUnmapBuffer(GL_UNIFORM_BUFFER);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     
+}
+
+void UpdateInput(App* app)
+{
+    float moveSpeed = app->cameraSpeed;
+
+    if (app->input.keys[K_LSHIFT] == BUTTON_PRESSED)
+    {
+        moveSpeed = app->cameraSprintSpeed;
+    }
+
+    if (app->input.keys[K_W] == BUTTON_PRESSED)
+    {
+        app->camera.position.z += moveSpeed * app->deltaTime;
+    }
+    if (app->input.keys[K_S] == BUTTON_PRESSED)
+    {
+        app->camera.position.z -= moveSpeed * app->deltaTime;
+    }
+
+    if (app->input.keys[K_D] == BUTTON_PRESSED)
+    {
+        app->camera.position.x += moveSpeed * app->deltaTime;
+    }
+
+    if (app->input.keys[K_A] == BUTTON_PRESSED)
+    {
+        app->camera.position.x -= moveSpeed * app->deltaTime;
+    }
+
+
+    if (app->displayRotate)
+    {
+        float r = 20;
+        float alpha;
+        float beta;
+
+        alpha = (app->runTime / 15.0) * 3.14 * 2.0;
+        beta = 0.1 * 3.14 / 2.0;
+
+
+        app->camera.position = r * vec3(cos(alpha) * cos(beta), sin(beta), sin(alpha) * cos(beta));
+    }
+    
+
 }
 
 void Render(App* app)
@@ -470,9 +543,12 @@ void Render(App* app)
         }
         case Mode::Mode_TexturedMesh:
         {
+            glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
             for (int i = 0; i < app->activeGameObjects; ++i)
             {
-                u32 blockOffset = 0;
+
                 u32 blockSize = sizeof(glm::mat4) * 2;
                 glBindBufferRange(GL_UNIFORM_BUFFER, 1, app->bufferHandle, app->gameObjects[i].blockOffset, blockSize); //Here the offset should be saved for each entity defining where their information is stored in the uniform buffer
 
@@ -520,7 +596,6 @@ glm::mat4 TransformPositionScale(const vec3& pos, const vec3& scaleFactor)
     transform = scale(transform, scaleFactor);
     return transform;
 }
-
 
 /* //create the vertex format
             VertexBufferLayout vertexBufferLayout = {};

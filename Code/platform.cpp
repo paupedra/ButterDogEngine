@@ -90,6 +90,7 @@ void OnGlfwKeyboardEvent(GLFWwindow* window, int key, int scancode, int action, 
         case GLFW_KEY_Y: key = K_Y; break; case GLFW_KEY_Z: key = K_Z; break;
         case GLFW_KEY_ESCAPE: key = K_ESCAPE; break;
         case GLFW_KEY_ENTER:  key = K_ENTER; break;
+        case GLFW_KEY_LEFT_SHIFT:  key = K_LSHIFT; break;
     }
 
     App* app = (App*)glfwGetWindowUserPointer(window);
@@ -265,6 +266,7 @@ int main()
         // Frame time
         f64 currentFrameTime = glfwGetTime();
         app.deltaTime = (f32)(currentFrameTime - lastFrameTime);
+        app.runTime += app.deltaTime;
         lastFrameTime = currentFrameTime;
 
         // Reset frame allocator

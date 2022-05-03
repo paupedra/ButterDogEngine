@@ -3,6 +3,15 @@
 ///////////////////////////////////////////////////////////////////////
 #ifdef TEXTURED_GEOMETRY
 
+struct Light
+{
+	unsigned int type;
+	vec3 color;
+	vec3 direction;
+	vec3 position;
+};
+
+
 #if defined(VERTEX) ///////////////////////////////////////////////////
 
 // TODO: Write your vertex shader here
@@ -10,7 +19,14 @@
 layout(location=0) in vec3 aPosition;
 layout(location=2) in vec2 aTexCoord;
 
-layout(binding = 1,std140) uniform LocalParams
+layout(binding = 0,std140) uniform GlobalParams //Same for all game Objects
+{
+	vec3 uCameraPosition;
+	unsigned int uLightCount;
+	Light uLight[16];
+};
+
+layout(binding = 1,std140) uniform LocalParams //Per game Object
 {
 	mat4 uWorldMatrix;
 	mat4 uWorldViewProjectionMatrix;
@@ -18,8 +34,8 @@ layout(binding = 1,std140) uniform LocalParams
 
 out vec2 vTexCoord;
 out vec3 vPosition;
-out vec3 vNormal;
-out vec3 vViewDir;
+//out vec3 vNormal;
+//out vec3 vViewDir;
 
 void main()
 {
@@ -36,8 +52,8 @@ void main()
 
 in vec2 vTexCoord;
 in vec3 vPosition;
-in vec3 vNormal;
-in vec3 vViewDir;
+//in vec3 vNormal;
+//in vec3 vViewDir;
 
 uniform sampler2D uTexture;
 

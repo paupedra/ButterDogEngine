@@ -14,6 +14,29 @@ typedef glm::ivec2 ivec2;
 typedef glm::ivec3 ivec3;
 typedef glm::ivec4 ivec4;
 
+enum LightType
+{
+    LIGHT_DIRECTIONAL,
+    LIGHT_POINT
+};
+
+struct Light 
+{
+    LightType type;
+    vec3 color;
+    vec3 direction;
+    vec3 position;
+};
+
+struct Buffer
+{
+    GLuint handle;
+    GLenum type;
+    u32 size;
+    u32 head;
+    void* data; // Mapped data
+};
+
 struct Vao
 {
     GLuint handle;
@@ -162,6 +185,14 @@ struct GameObject
     u32 blockOffset;
 };
 
+struct Light
+{
+    //unsigned int type;
+    vec3 color;
+    vec3 direction;
+    vec3 position;
+};
+
 struct App
 {
     GameObject gameObjects[50];
@@ -173,6 +204,7 @@ struct App
 
     // Loop
     f32  deltaTime;
+    f32  runTime;
     bool isRunning;
 
     // Input
@@ -187,6 +219,11 @@ struct App
     GLuint bufferHandle; //Hold the number of the Uniform Buffer (It is used before rendering on glBindBufferRange)
 
     Camera camera;
+
+    bool displayRotate = false; //Mode that makes the camera rotate to display models
+
+    float cameraSpeed = 20.f; //Movement of the camera with WASD
+    float cameraSprintSpeed = 40.f; //Movement of the camera with WASD when pressing SHIFT
 
     float aspectRatio;
     float zNear = 0.1f;
@@ -229,6 +266,8 @@ struct App
     // Location of the texture uniform in the textured quad shader
     GLuint programUniformTexture;
 
+    GLint maxUniformBufferSize, uniformBlockAlignment;
+
     // VAO object to link our screen filling quad with our textured quad shader
     GLuint vao;
 };
@@ -238,6 +277,8 @@ void Init(App* app);
 void InitQuad(App* app);
 
 void Gui(App* app);
+
+void UpdateInput(App* app);
 
 void Update(App* app);
 
