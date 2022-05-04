@@ -185,19 +185,15 @@ struct GameObject
     u32 blockOffset;
 };
 
-struct Light
-{
-    //unsigned int type;
-    vec3 color;
-    vec3 direction;
-    vec3 position;
-};
-
 struct App
 {
     GameObject gameObjects[50];
 
-    int activeGameObjects=0;
+    Light lights[10];
+
+    u32 activeLights = 0;
+
+    u32 activeGameObjects=0;
 
     //OpenGL info for output purposes
     OpenGLInfo openGLInfo;
@@ -217,6 +213,11 @@ struct App
     ivec2 displaySize;
 
     GLuint bufferHandle; //Hold the number of the Uniform Buffer (It is used before rendering on glBindBufferRange)
+
+    u32 globalParamsOffset = 0;
+    u32 globalParamsSize = 0;
+
+    Buffer cbuffer;
 
     Camera camera;
 
@@ -287,3 +288,5 @@ void Render(App* app);
 u32 LoadTexture2D(App* app, const char* filepath);
 
 GLuint FindVAO(Mesh& mesh, u32 submeshIndex, const Program& program);
+
+Light AddLight(App* app,LightType type,vec3 color,vec3 direction,vec3 position);

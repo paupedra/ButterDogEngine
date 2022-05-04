@@ -261,8 +261,7 @@ void Init(App* app)
     app->zFar = 1000.0f;
      
     app->projection = glm::perspective(glm::radians(60.0f), app->aspectRatio, app->zNear, app->zFar);
-    
-    
+   
 
 
     //This is per object
@@ -273,6 +272,9 @@ void Init(App* app)
     app->gameObjects[1].transform.matrix = TransformPositionScale(vec3(10.f, 0.f, 0.f), vec3(1.f));
     app->gameObjects[2].transform.matrix = TransformPositionScale(vec3(0.f, 0.f, 10.f), vec3(1.f));
     app->activeGameObjects = 3;
+
+    AddLight(app, LIGHT_DIRECTIONAL, vec3(1, 1, 1), vec3(0, 1, 0), vec3(0, 0, 0));
+    AddLight(app, LIGHT_POINT, vec3(1, 1, 1), vec3(0, 1, 0), vec3(10, 10, 0));
 
     app->mode = Mode::Mode_TexturedMesh; //Define what mode of draw we use
 
@@ -317,6 +319,10 @@ void Init(App* app)
             glBindBuffer(GL_UNIFORM_BUFFER, app->bufferHandle);
             glBufferData(GL_UNIFORM_BUFFER, app->maxUniformBufferSize, NULL, GL_STREAM_DRAW);
             glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+
+            
+
 
             break;
         }
@@ -428,6 +434,32 @@ void Update(App* app)
     UpdateInput(app);
 
     app->view = lookAt(app->camera.position, app->camera.target, vec3(0.f, 1.f, 0.f));
+
+    Buffer globalsBuffer = CreateBuffer(app->maxUniformBufferSize, GL_UNIFORM_BUFFER, GL_STREAM_DRAW);
+
+    BindBuffer(app->cbuffer);
+
+    MapBuffer(app->cbuffer, GL_WRITE_ONLY);
+
+    //Initialize global uniforms
+    app->globalParamsOffset = app->cbuffer.head;
+
+    PushVec3(app->cbuffer, app->camera.position);
+
+    PushUInt(app->cbuffer, app->activeLights);
+
+    for (u32 i=0; i< app->activeLights;++i)
+    {
+        AlignHead(app->cbuffer, sizeof(vec4));
+
+        Light& light = app->lights[i];
+        PushUInt(app->cbuffer, light.type);
+        PushVec3(app->cbuffer, light.color);
+        PushVec3(app->cbuffer, light.direction);
+        PushVec3(app->cbuffer, light.position);
+    }
+
+    app->globalParamsSize = app->cbuffer.head - app->globalParamsOffset;
 
     // You can handle app->input keyboard/mouse here
     glBindBuffer(GL_UNIFORM_BUFFER, app->bufferHandle);
@@ -546,11 +578,15 @@ void Render(App* app)
             glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+            //Bind buffer range with binding 0 for global params (light)
+            glBindBufferRange(GL_UNIFORM_BUFFER, 0, app->bufferHandle, app->globalParamsOffset, app->globalParamsSize);
+
             for (int i = 0; i < app->activeGameObjects; ++i)
             {
 
                 u32 blockSize = sizeof(glm::mat4) * 2;
                 glBindBufferRange(GL_UNIFORM_BUFFER, 1, app->bufferHandle, app->gameObjects[i].blockOffset, blockSize); //Here the offset should be saved for each entity defining where their information is stored in the uniform buffer
+                
 
                 Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
                 glUseProgram(texturedMeshProgram.handle);
@@ -595,6 +631,17 @@ glm::mat4 TransformPositionScale(const vec3& pos, const vec3& scaleFactor)
     glm::mat4 transform = translate(pos);
     transform = scale(transform, scaleFactor);
     return transform;
+}
+
+Light AddLight(App* app, LightType type, vec3 color, vec3 direction, vec3 position)
+{
+    app->lights[app->activeLights].type = type;
+    app->lights[app->activeLights].color = color;
+    app->lights[app->activeLights].direction = direction;
+    app->lights[app->activeLights].position = position;
+    app->activeLights++;
+
+    return app->lights[app->activeLights - 1];
 }
 
 /* //create the vertex format

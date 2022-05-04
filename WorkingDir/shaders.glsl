@@ -23,7 +23,7 @@ layout(binding = 0,std140) uniform GlobalParams //Same for all game Objects
 {
 	vec3 uCameraPosition;
 	unsigned int uLightCount;
-	Light uLight[16];
+	Light uLight[10];
 };
 
 layout(binding = 1,std140) uniform LocalParams //Per game Object
