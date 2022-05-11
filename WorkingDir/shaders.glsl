@@ -12,19 +12,19 @@ struct Light
 };
 
 
-#if defined(VERTEX) ///////////////////////////////////////////////////
-
-// TODO: Write your vertex shader here
-
-layout(location=0) in vec3 aPosition;
-layout(location=2) in vec2 aTexCoord;
-
 layout(binding = 0,std140) uniform GlobalParams //Same for all game Objects
 {
 	vec3 uCameraPosition;
 	unsigned int uLightCount;
 	Light uLight[10];
 };
+
+#if defined(VERTEX) ///////////////////////////////////////////////////
+
+// TODO: Write your vertex shader here
+
+layout(location=0) in vec3 aPosition;
+layout(location=2) in vec2 aTexCoord;
 
 layout(binding = 1,std140) uniform LocalParams //Per game Object
 {
@@ -62,6 +62,7 @@ layout(location=0) out vec4 oColor;
 void main()
 {
 	oColor = texture(uTexture,vTexCoord);
+	oColor += vec4(uLight[0].color,1.0);
 }
 
 #endif

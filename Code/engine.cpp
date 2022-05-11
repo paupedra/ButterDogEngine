@@ -273,8 +273,8 @@ void Init(App* app)
     app->gameObjects[2].transform.matrix = TransformPositionScale(vec3(0.f, 0.f, 10.f), vec3(1.f));
     app->activeGameObjects = 3;
 
-    AddLight(app, LIGHT_DIRECTIONAL, vec3(1, 1, 1), vec3(0, 1, 0), vec3(0, 0, 0));
-    AddLight(app, LIGHT_POINT, vec3(1, 1, 1), vec3(0, 1, 0), vec3(10, 10, 0));
+    AddLight(app, LIGHT_DIRECTIONAL, vec3(1, 0, 0), vec3(0, 1, 0), vec3(0, 0, 0));
+    AddLight(app, LIGHT_POINT, vec3(1, 0, 0), vec3(0, 1, 0), vec3(10, 10, 0));
 
     app->mode = Mode::Mode_TexturedMesh; //Define what mode of draw we use
 
@@ -314,15 +314,7 @@ void Init(App* app)
             glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &app->maxUniformBufferSize);
             glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &app->uniformBlockAlignment);
 
-            
-            glGenBuffers(1, &app->bufferHandle);
-            glBindBuffer(GL_UNIFORM_BUFFER, app->bufferHandle);
-            glBufferData(GL_UNIFORM_BUFFER, app->maxUniformBufferSize, NULL, GL_STREAM_DRAW);
-            glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-
-            
-
+            app->cbuffer = CreateConstantBuffer(app->maxUniformBufferSize);
 
             break;
         }
@@ -435,9 +427,13 @@ void Update(App* app)
 
     app->view = lookAt(app->camera.position, app->camera.target, vec3(0.f, 1.f, 0.f));
 
-    Buffer globalsBuffer = CreateBuffer(app->maxUniformBufferSize, GL_UNIFORM_BUFFER, GL_STREAM_DRAW);
+    //Buffer globalsBuffer = CreateBuffer(app->maxUniformBufferSize, GL_UNIFORM_BUFFER, GL_STREAM_DRAW);
 
-    BindBuffer(app->cbuffer);
+    //BindBuffer(app->cbuffer);
+
+    //MapBuffer(app->cbuffer, GL_WRITE_ONLY);
+
+    
 
     MapBuffer(app->cbuffer, GL_WRITE_ONLY);
 
@@ -461,25 +457,19 @@ void Update(App* app)
 
     app->globalParamsSize = app->cbuffer.head - app->globalParamsOffset;
 
-    // You can handle app->input keyboard/mouse here
-    glBindBuffer(GL_UNIFORM_BUFFER, app->bufferHandle);
-    //copy all entitie's matrices (matrix uniform in shader)
-    u8* bufferData = (u8*)glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
-    u32 bufferHead = 0;
 
     for (int i = 0; i < app->activeGameObjects; ++i)
     {
-        bufferHead = Align(bufferHead, app->uniformBlockAlignment);
+        //bufferHead = Align(bufferHead, app->uniformBlockAlignment);
 
-        app->gameObjects[i].blockOffset = bufferHead;
+        AlignHead(app->cbuffer, app->uniformBlockAlignment);
 
-        memcpy(bufferData + bufferHead, glm::value_ptr(app->gameObjects[i].transform.matrix), sizeof(glm::mat4));
-        bufferHead += sizeof(glm::mat4);
+        app->gameObjects[i].blockOffset = app->cbuffer.head;
 
-        memcpy(bufferData + bufferHead, glm::value_ptr(app->projection * app->view * app->gameObjects[i].transform.matrix), sizeof(glm::mat4));
-        bufferHead += sizeof(glm::mat4);
-
-       
+        PushMat4(app->cbuffer, app->gameObjects[i].transform.matrix);
+        PushMat4(app->cbuffer, app->projection * app->view * app->gameObjects[i].transform.matrix);
+        
+        //Here I could save the local params size if the uniforms of each entity needs to store any extra specific data
 
     }
 
@@ -579,13 +569,13 @@ void Render(App* app)
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             //Bind buffer range with binding 0 for global params (light)
-            glBindBufferRange(GL_UNIFORM_BUFFER, 0, app->bufferHandle, app->globalParamsOffset, app->globalParamsSize);
+            glBindBufferRange(GL_UNIFORM_BUFFER, 0, app->cbuffer.handle, app->globalParamsOffset, app->globalParamsSize);
 
             for (int i = 0; i < app->activeGameObjects; ++i)
             {
 
                 u32 blockSize = sizeof(glm::mat4) * 2;
-                glBindBufferRange(GL_UNIFORM_BUFFER, 1, app->bufferHandle, app->gameObjects[i].blockOffset, blockSize); //Here the offset should be saved for each entity defining where their information is stored in the uniform buffer
+                glBindBufferRange(GL_UNIFORM_BUFFER, 1, app->cbuffer.handle, app->gameObjects[i].blockOffset, blockSize); //Here the offset should be saved for each entity defining where their information is stored in the uniform buffer
                 
 
                 Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
