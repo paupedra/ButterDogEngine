@@ -214,6 +214,16 @@ struct App
 
     GLuint bufferHandle; //Hold the number of the Uniform Buffer (It is used before rendering on glBindBufferRange)
 
+    //Framebuffer
+    GLuint framebufferHandle;
+    GLuint depthAttachmentHandle;
+    GLuint colorAttachmentHandle;
+
+    Program drawFramebufferProgram;
+    u32 drawFramebufferProgramIdx;
+
+
+
     u32 globalParamsOffset = 0;
     u32 globalParamsSize = 0;
 
@@ -270,12 +280,14 @@ struct App
     GLint maxUniformBufferSize, uniformBlockAlignment;
 
     // VAO object to link our screen filling quad with our textured quad shader
-    GLuint vao;
+    GLuint vaoQuad;
 };
 
 void Init(App* app);
 
 void InitQuad(App* app);
+
+void InitFramebuffer(App* app);
 
 void Gui(App* app);
 

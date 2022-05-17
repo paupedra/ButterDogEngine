@@ -78,7 +78,7 @@ void main()
 
 
 
-/*#ifdef TEXTURED_GEOMETRY
+#ifdef DRAW_FRAMEBUFFER
 
 #if defined(VERTEX) ///////////////////////////////////////////////////
 
@@ -111,4 +111,4 @@ void main()
 }
 
 #endif
-#endif*/
+#endif
